@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ULLSWATER | UNIVERSAL MIRROR SYSTEM</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --primary: #1a2a3a; --accent: #c0392b; --success: #27ae60; --bg: #f4f4f9; --warning: #e67e22; --bulk: #8e44ad; --load: #2c3e50; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); padding: 10px; color: #333; margin: 0; }
+        
+        .form-container { max-width: 1000px; background: white; margin: auto; padding: 20px; border: 1px solid #000; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
+        
+        .header { display: flex; flex-direction: column; border-bottom: 3px solid var(--primary); padding-bottom: 15px; margin-bottom: 20px; gap: 15px; }
+        #corpName { font-weight: 800; font-size: 22px; border: none; color: var(--primary); text-transform: uppercase; width: 100%; outline: none; }
+        #formType { font-size: 18px; font-weight: 700; border: none; color: var(--accent); background: transparent; cursor: pointer; outline: none; -webkit-appearance: none; }
+        
+        #qrcode-container { text-align: center; border: 2px solid #000; padding: 10px; background: #fff; width: fit-content; margin: 0 auto; }
+        .qr-label { font-size: 10px; font-weight: bold; margin-top: 8px; text-transform: uppercase; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 8px; font-size: 12px; vertical-align: top; overflow-wrap: break-word; }
+        .bg-blue { background-color: var(--primary) !important; color: white !important; font-weight: bold; -webkit-print-color-adjust: exact; }
+        .bg-grey { background-color: #f2f2f2 !important; font-weight: bold; -webkit-print-color-adjust: exact; }
+        
+        input, select, textarea { width: 100%; border: none; font-size: 14px; background: transparent; outline: none; padding: 4px; font-family: inherit; }
+        textarea { resize: none; overflow: hidden; line-height: 1.4; min-height: 40px; display: block; }
+
+        .signature-wrapper { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 40px; }
+        .sig-box { text-align: center; }
+        .sig-line { border-top: 1.5px solid #000; margin-bottom: 5px; }
+        .sig-label { font-size: 9px; font-weight: bold; text-transform: uppercase; }
+
+        .no-print { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 20px; padding: 15px; background: #eee; border-radius: 8px; }
+        button { padding: 12px 8px; cursor: pointer; border: none; color: white; font-weight: bold; border-radius: 4px; font-size: 10px; text-transform: uppercase; transition: opacity 0.2s; }
+        button:active { opacity: 0.7; }
+
+        @media (min-width: 768px) {
+            .header { flex-direction: row; justify-content: space-between; }
+            .no-print { grid-template-columns: repeat(6, 1fr); }
+            button { font-size: 10px; }
+        }
+
+        @media print {
+            @page { margin: 1cm; size: portrait; }
+            body { background: white; padding: 0; }
+            .form-container { border: none; box-shadow: none; width: 100%; padding: 0; }
+            .no-print, .action-col, .btn-add { display: none !important; }
+            textarea { overflow: visible !important; height: auto !important; }
+            tr { page-break-inside: avoid; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <div class="header">
+        <div style="flex-grow: 1;">
+            <input type="text" id="corpName" value="ULLSWATER CORPORATION" oninput="saveData()">
+            <select id="formType" onchange="updateMode(); generateID(); saveData()">
+                <option value="JOB ORDER">JOB ORDER FORM</option>
+                <option value="PURCHASE ORDER">PURCHASE ORDER FORM</option>
+            </select>
+            <div style="margin-top: 15px;">
+                <strong><span id="idLabel">JO NO</span>:</strong> 
+                <input type="text" id="docNo" style="font-weight: bold; width: 220px; border-bottom: 1px solid #000;" oninput="saveData()">
+            </div>
+        </div>
+        <div id="qrcode-container">
+            <div id="qrcode"></div>
+            <div class="qr-label">EXACT MIRROR SCAN</div>
+        </div>
+    </div>
+
+    <table>
+        <tr>
+            <td width="50%"><strong>DATE:</strong> <input type="date" id="docDate" oninput="saveData()"></td>
+            <td width="50%"><strong><span id="refLabel">UNIT NO</span>:</strong> <input type="text" id="refNo" placeholder="..." oninput="saveData()"></td>
+        </tr>
+        <tr>
+            <td colspan="2">
+                <strong id="descLabel">PROBLEM:</strong>
+                <textarea id="description" oninput="autoExpand(this); saveData()" placeholder="Details..."></textarea>
+            </td>
+        </tr>
+    </table>
+
+    <table id="mainTable" style="margin-top: 20px;">
+        <thead>
+            <tr class="bg-blue">
+                <th width="20%">SOURCE</th>
+                <th width="32%">DESCRIPTION</th>
+                <th width="10%">QTY</th>
+                <th width="10%">UOM</th>
+                <th width="12%">PRICE</th>
+                <th width="16%">TOTAL</th>
+                <th class="action-col" width="35px"></th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+        <tfoot>
+            <tr class="bg-grey">
+                <td colspan="5" style="text-align: right; padding-right: 15px;">GRAND TOTAL:</td>
+                <td id="grandTotal" style="font-weight: bold;">0.00</td>
+                <td class="action-col"></td>
+            </tr>
+        </tfoot>
+    </table>
+    
+    <button class="btn-add" style="background: #34495e; width: 100%; margin-top: 10px;" onclick="addRow()">+ ADD LINE ITEM</button>
+
+    <div class="signature-wrapper">
+        <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Requested By</div></div>
+        <div class="sig-box"><div class="sig-line"></div><div id="sigMiddle" class="sig-label">Performed By</div></div>
+        <div class="sig-box"><div class="sig-line"></div><div class="sig-label">Verified By</div></div>
+    </div>
+
+    <div class="no-print">
+        <button style="background: #2980b9;" onclick="window.print()">PRINT PDF</button>
+        <button style="background: var(--success);" onclick="exportCSV()">SAVE CSV</button>
+        <button style="background: var(--warning);" onclick="exportJSON()">SAVE JSON</button>
+        <button style="background: var(--load);" onclick="document.getElementById('loadInput').click()">LOAD JSON</button>
+        <button style="background: var(--bulk);" onclick="document.getElementById('bulkInput').click()">BULK LOAD JSON</button>
+        <button style="background: var(--accent);" onclick="clearForm()">CLEAR</button>
+        
+        <input type="file" id="loadInput" style="display:none" accept=".json" onchange="loadSingle(event)">
+        <input type="file" id="bulkInput" style="display:none" accept=".json" multiple onchange="loadBulk(event)">
+    </div>
+</div>
+
+<script>
+    let qrTimeout;
+
+    function generateID() {
+        const type = document.getElementById('formType').value;
+        const prefix = (type === "PURCHASE ORDER") ? "PO" : "JO";
+        const datePart = new Date().toISOString().slice(2,10).replace(/-/g, '');
+        const randomPart = Math.floor(1000 + Math.random() * 9000);
+        document.getElementById('docNo').value = `${prefix}-${datePart}-${randomPart}`;
+    }
+
+    function updateMode() {
+        const type = document.getElementById('formType').value;
+        const isPO = (type === "PURCHASE ORDER");
+        document.getElementById('idLabel').innerText = isPO ? "PO NO" : "JO NO";
+        document.getElementById('refLabel').innerText = isPO ? "VENDOR" : "UNIT NO";
+        document.getElementById('descLabel').innerText = isPO ? "REMARKS:" : "PROBLEM:";
+        document.getElementById('sigMiddle').innerText = isPO ? "Approved By" : "Performed By";
+    }
+
+    function autoExpand(el) { 
+        el.style.height = 'auto'; 
+        el.style.height = (el.scrollHeight) + 'px'; 
+    }
+
+    function calculateTotals() {
+        let grandTotal = 0;
+        document.querySelectorAll('#tableBody tr').forEach(tr => {
+            const qty = parseFloat(tr.querySelector('.qty').value) || 0;
+            const price = parseFloat(tr.querySelector('.price').value) || 0;
+            const rowTotal = qty * price;
+            tr.querySelector('.rowTotal').innerText = rowTotal.toFixed(2);
+            grandTotal += rowTotal;
+        });
+        document.getElementById('grandTotal').innerText = grandTotal.toLocaleString(undefined, {minimumFractionDigits: 2});
+        updateQRCode();
+    }
+
+    function addRow(src="", d="", q="", u="", p="") {
+        const tbody = document.getElementById('tableBody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><textarea class="src" placeholder="Source..." oninput="autoExpand(this); saveData()">${src}</textarea></td>
+            <td><textarea class="desc" placeholder="Desc..." oninput="autoExpand(this); saveData()">${d}</textarea></td>
+            <td><input type="number" class="qty" value="${q}" oninput="calculateTotals(); saveData()"></td>
+            <td><input type="text" class="uom" value="${u}" placeholder="pc" oninput="saveData()"></td>
+            <td><input type="number" step="0.01" class="price" value="${p}" oninput="calculateTotals(); saveData()"></td>
+            <td class="rowTotal" style="font-weight:bold;">0.00</td>
+            <td class="action-col"><button style="background:var(--accent); padding: 4px;" onclick="this.closest('tr').remove(); calculateTotals(); saveData()">✕</button></td>
+        `;
+        tbody.appendChild(tr);
+        calculateTotals();
+        setTimeout(() => { tr.querySelectorAll('textarea').forEach(autoExpand); }, 10);
+    }
+
+    function updateQRCode() {
+        clearTimeout(qrTimeout);
+        qrTimeout = setTimeout(() => {
+            const corp = document.getElementById('corpName').value;
+            const type = document.getElementById('formType').value;
+            const no = document.getElementById('docNo').value;
+            const date = document.getElementById('docDate').value;
+            const ref = document.getElementById('refNo').value;
+            const prob = document.getElementById('description').value;
+            const gTotal = document.getElementById('grandTotal').innerText;
+
+            let mirror = `ULLSWATER MIRROR\nCORP: ${corp}\nTYPE: ${type}\nDOC: ${no}\nDATE: ${date}\nREF: ${ref}\nDESC: ${prob}\n\nITEMS:\n`;
+            document.querySelectorAll('#tableBody tr').forEach((r, i) => {
+                const s = r.querySelector('.src').value;
+                const d = r.querySelector('.desc').value;
+                const q = r.querySelector('.qty').value;
+                const p = r.querySelector('.price').value;
+                if(d) mirror += `${i+1}. ${s}|${d}|Q:${q}|P:${p}\n`;
+            });
+            mirror += `\nTOTAL: ${gTotal}`;
+
+            const qrDiv = document.getElementById("qrcode");
+            qrDiv.innerHTML = "";
+            new QRCode(qrDiv, { text: mirror, width: 200, height: 200, correctLevel: QRCode.CorrectLevel.L });
+        }, 1200);
+    }
+
+    function exportCSV() {
+        const docName = document.getElementById('docNo').value || "export";
+        let csv = `COMPANY,FORM TYPE,DOC NO,DATE,REFERENCE,SUMMARY\n`;
+        csv += `"${document.getElementById('corpName').value}","${document.getElementById('formType').value}","${docName}","${document.getElementById('docDate').value}","${document.getElementById('refNo').value}","${document.getElementById('description').value.replace(/\n/g, " ")}"\n\n`;
+        csv += "LINE,SOURCE,DESCRIPTION,QTY,UOM,PRICE,TOTAL\n";
+        document.querySelectorAll('#tableBody tr').forEach((r, i) => {
+            csv += `${i+1},"${r.querySelector('.src').value}","${r.querySelector('.desc').value}","${r.querySelector('.qty').value}","${r.querySelector('.uom').value}","${r.querySelector('.price').value}","${r.querySelector('.rowTotal').innerText}"\n`;
+        });
+        csv += `\n,,,,,GRAND TOTAL,${document.getElementById('grandTotal').innerText}\n`;
+        triggerDownload(new Blob([csv], {type: 'text/csv'}), `${docName}.csv`);
+    }
+
+    function exportJSON() {
+        const docName = document.getElementById('docNo').value || "export";
+        const data = localStorage.getItem('ULLSWATER_SYSTEM');
+        triggerDownload(new Blob([data], {type: 'application/json'}), `${docName}.json`);
+    }
+
+    async function loadSingle(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const data = JSON.parse(await file.text());
+            if(confirm("Load this file? Current unsaved changes will be replaced.")) {
+                document.getElementById('tableBody').innerHTML = "";
+                document.getElementById('corpName').value = data.corp || "";
+                document.getElementById('formType').value = data.type || "JOB ORDER";
+                document.getElementById('docNo').value = data.docNo || "";
+                document.getElementById('docDate').value = data.date || "";
+                document.getElementById('refNo').value = data.refNo || "";
+                document.getElementById('description').value = data.desc || "";
+                if(data.items) data.items.forEach(item => addRow(item.src, item.d, item.q, item.u, item.p));
+                updateMode();
+                saveData();
+            }
+        } catch(err) { alert("Invalid JSON file."); }
+        e.target.value = '';
+    }
+
+    async function loadBulk(e) {
+        for (const file of e.target.files) {
+            try {
+                const data = JSON.parse(await file.text());
+                if(data.items) {
+                    const importDate = data.date || "N/A";
+                    const importRef = data.docNo || "N/A";
+                    data.items.forEach(item => {
+                        const metaSource = `[${importDate} | ${importRef}] ${item.src || ""}`;
+                        addRow(metaSource, item.d, item.q, item.u, item.p);
+                    });
+                }
+            } catch(err) { alert("Invalid JSON file detected."); }
+        }
+        saveData();
+        e.target.value = '';
+    }
+
+    function triggerDownload(blob, filename) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+    }
+
+    function saveData() {
+        const data = {
+            corp: document.getElementById('corpName').value,
+            type: document.getElementById('formType').value,
+            docNo: document.getElementById('docNo').value,
+            date: document.getElementById('docDate').value,
+            refNo: document.getElementById('refNo').value,
+            desc: document.getElementById('description').value,
+            items: Array.from(document.querySelectorAll('#tableBody tr')).map(r => ({
+                src: r.querySelector('.src').value, d: r.querySelector('.desc').value, 
+                q: r.querySelector('.qty').value, u: r.querySelector('.uom').value, p: r.querySelector('.price').value 
+            }))
+        };
+        localStorage.setItem('ULLSWATER_SYSTEM', JSON.stringify(data));
+        updateQRCode();
+    }
+
+    function clearForm() { if(confirm("Erase all data?")) { localStorage.removeItem('ULLSWATER_SYSTEM'); location.reload(); } }
+
+    window.onload = () => {
+        const saved = JSON.parse(localStorage.getItem('ULLSWATER_SYSTEM'));
+        if(saved) {
+            document.getElementById('corpName').value = saved.corp;
+            document.getElementById('formType').value = saved.type;
+            document.getElementById('docNo').value = saved.docNo;
+            document.getElementById('docDate').value = saved.date;
+            document.getElementById('refNo').value = saved.refNo;
+            document.getElementById('description').value = saved.desc || "";
+            if(saved.items) saved.items.forEach(item => addRow(item.src, item.d, item.q, item.u, item.p));
+        } else {
+            generateID();
+            document.getElementById('docDate').valueAsDate = new Date();
+            addRow();
+        }
+        updateMode();
+        updateQRCode();
+        setTimeout(() => { document.querySelectorAll('textarea').forEach(autoExpand); }, 200);
+    };
+</script>
+</body>
+</html>
